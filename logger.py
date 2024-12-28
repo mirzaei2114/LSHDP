@@ -24,7 +24,7 @@ def setup_logging(name):
     log_file = os.path.join(results_dir, f"log.log")
 
     # Configure the root logger
-    logging.basicConfig(level=logging.DEBUG, format=log_format)
+    logging.basicConfig(level=logging.INFO, format=log_format)
 
     # Add a rotating file handler to prevent excessive log file size
     file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=3)
@@ -33,4 +33,5 @@ def setup_logging(name):
     # Attach the handler to the logger
     logger = logging.getLogger(name)
     logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
     return logger

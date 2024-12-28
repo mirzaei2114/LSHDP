@@ -13,7 +13,7 @@ from torchvision.models.vision_transformer import EncoderBlock
 total_batch_size = 128
 num_workers = 4
 results_dir = "./temp_results/"
-
+# fsdp_kwargs = None
 fsdp_kwargs = {
     "sharding_strategy": ShardingStrategy.NO_SHARD,
     "cpu_offload": CPUOffload(offload_params=True),

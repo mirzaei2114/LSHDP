@@ -1,17 +1,19 @@
 import functools
 
+from torch import nn as nn
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-from torchvision.models.vision_transformer import vit_b_32
+from torchvision.models.vision_transformer import vit_b_32, ViT_B_32_Weights
 from torch.optim import AdamW
 
 from heterogeneous_distributed_sampler import HeterogeneousDistributedSampler
 
 
-def get_model_and_optim():
-    model = vit_b_32(weights=None)
+def get_model_optim_loss():
+    model = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
     optimizer_cls = functools.partial(AdamW, lr=1e-4)
-    return model, optimizer_cls
+    loss = nn.CrossEntropyLoss()
+    return model, optimizer_cls, loss
 
 def get_dataset_and_dataloader(world_size, rank, batch_sizes, num_workers):
     transform = transforms.Compose([

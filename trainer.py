@@ -18,22 +18,22 @@ from config import (
     fsdp_kwargs,
     num_workers
 )
-from logger import logging, setup_logging
+from logger import setup_logging
 
-logger = setup_logging("profiler")
+logger = setup_logging("trainer")
 
 
-def simulate_training(batch_sizes, num_iterations):
+def train(batch_sizes, num_iterations):
     """
-    Simulates the training loop with FSDP, tracking memory and execution time.
+    The training loop with FSDP, tracking memory and execution time.
 
     Args:
-        num_iterations (int): Total number of iterations to simulate.
+        num_iterations (int): Total number of iterations.
 
     Returns:
         dict: Metrics including model size, execution time, and memory usage.
     """
-    logger.debug("Starting simulation of training...")
+    logger.debug("Starting training...")
     device = torch.device("cuda", torch.cuda.current_device())
 
     # Get model and optimizer
@@ -74,9 +74,9 @@ def simulate_training(batch_sizes, num_iterations):
     epoch = 0
     completed = False
     start_time = None
+    losses = []
 
-    if logger.level <= logging.DEBUG:
-        progress_bar = tqdm(total=num_iterations, desc="Simulate training", unit="batch")
+    progress_bar = tqdm(total=num_iterations, desc="Training", unit="batch")
     while not completed:
         logger.debug(f"Starting epoch {epoch}...")
         dataloader.sampler.set_epoch(epoch)  # Shuffle data for each epoch
@@ -87,12 +87,12 @@ def simulate_training(batch_sizes, num_iterations):
             optimizer.zero_grad()
             outputs = wrapped_model(inputs)
             loss = loss_fn(outputs, targets)
+            losses.append(loss.item())
             (loss*loss_coef).backward()
             optimizer.step()
 
             iteration += 1
-            if logger.level <= logging.DEBUG:
-                progress_bar.update(1)
+            progress_bar.update(1)
 
             # Skip the initial warm-up batches for timing
             if iteration == num_workers:
@@ -104,22 +104,22 @@ def simulate_training(batch_sizes, num_iterations):
                 break
 
         epoch += 1
-    if logger.level <= logging.DEBUG:
-        progress_bar.close()
+    progress_bar.close()
 
     end_time = time.perf_counter()  # End timing
     execution_time = (end_time - start_time) * 1000 if start_time else -1
     peak_memory = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
     peak_reserved = torch.cuda.max_memory_reserved(device) / (1024 ** 2)
 
-    logger.debug(f"Training simulation completed in {execution_time:.4f} ms.")
+    logger.debug(f"Training completed in {execution_time:.4f} ms.")
     logger.debug(f"Peak GPU memory usage: Allocated {peak_memory:.2f} MB, Reserved {peak_reserved:.2f} MB")
 
     return {
         "model_size": model_size,
         "execution_time": execution_time,
         "peak_memory": peak_memory,
-        "peak_reserved": peak_reserved
+        "peak_reserved": peak_reserved,
+        "losses": losses
     }
 
 
@@ -128,7 +128,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_sizes", nargs="+", type=int, help="Batch sizes per rank")
-    parser.add_argument("--num_iterations", default=num_workers * 2, type=int, help="Number of iterations")
+    parser.add_argument("--batch_sizes_path", default="temp_results/best_batch_sizes.pt", type=str, help="Path to batch sizes per rank")
+    parser.add_argument("--num_iterations", default=100, type=int, help="Number of iterations")
     args = parser.parse_args()
 
     # Validate input arguments
@@ -136,37 +137,49 @@ if __name__ == "__main__":
         "Number of iterations should be greater than number of workers "
         "to avoid including dataloader warm-up overhead."
     )
+    if args.batch_sizes is not None and len(args.batch_sizes) > 0:
+        batch_sizes = args.batch_sizes
+    else:
+        assert os.path.isfile(args.batch_sizes_path), (
+            "Cannot find batch sizes file."
+        )
+        batch_sizes = torch.load(args.batch_sizes_path, weights_only=True, map_location="cpu").tolist()
 
     os.makedirs(results_dir, exist_ok=True)
     setup()
+    device = torch.device("cuda", torch.cuda.current_device())
+
 
     try:
-        simulation_stats = simulate_training(args.batch_sizes, args.num_iterations)
+        training_stats = train(batch_sizes, args.num_iterations)
 
     except torch.cuda.OutOfMemoryError as gpu_oom:
         logger.debug("GPU Out of Memory Error occurred.")
-        simulation_stats = {
+        training_stats = {
             "model_size": -1,
             "execution_time": -1,
             "peak_memory": -1,
-            "peak_reserved": -1
+            "peak_reserved": -1,
+            "losses": []
         }
     except MemoryError as cpu_oom:
         logger.debug("CPU Out of Memory Error occurred.")
-        simulation_stats = {
+        training_stats = {
             "model_size": -1,
             "execution_time": -1,
             "peak_memory": -1,
-            "peak_reserved": -1
+            "peak_reserved": -1,
+            "losses": []
         }
     except RuntimeError as runtime_err:
         if "CUBLAS_STATUS_ALLOC_FAILED" in str(runtime_err) or "Failed to CUDA calloc" in str(runtime_err):
             logger.debug("RuntimeError related to GPU memory allocation.")
-            simulation_stats = {
+            training_stats = {
                 "model_size": -1,
                 "execution_time": -1,
                 "peak_memory": -1,
-                "peak_reserved": -1
+                "peak_reserved": -1,
+                "losses": []
             }
         else:
             logger.error("Unexpected RuntimeError occurred.", exc_info=True)
@@ -176,13 +189,13 @@ if __name__ == "__main__":
         gc.collect()  # Trigger garbage collection
         logger.debug("Cleaned up memory and caches.")
 
-    # Save the simulation stats
-    result_path = os.path.join(results_dir, "profiler.json")
+    # Save the training stats
+    result_path = os.path.join(results_dir, "trainer.json")
     with open(result_path, 'w') as result_file:
-        json.dump(simulation_stats, result_file)
-    logger.debug(f"Simulation results saved to {result_path}.")
+        json.dump(training_stats, result_file)
+    logger.debug(f"Training results saved to {result_path}.")
 
     # Ensure all processes finish before cleanup
     dist.barrier()
     cleanup()
-    logger.debug("Training simulation process completed and resources cleaned up.")
+    logger.debug("Training process completed and resources cleaned up.")

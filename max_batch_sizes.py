@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     low, high = None, None
     while True:
-        logger.debug("Launching profiler subprocess with current batch sizes...")
+        logger.info("Launching profiler subprocess with current batch sizes...")
         subprocess.run(
             [
                 "torchrun",

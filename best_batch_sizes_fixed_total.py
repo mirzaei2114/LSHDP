@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     # Save results
     result_path = os.path.join(results_dir, f"best_batch_sizes_fixed.pt")
-    torch.save(current_batch_sizes.cpu(), result_path)
+    torch.save(current_batch_sizes.cpu().int(), result_path)
     logger.info(f"Saved final batch sizes to {result_path}.")
 
     cleanup()
