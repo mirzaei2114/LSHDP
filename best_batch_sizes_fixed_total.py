@@ -5,7 +5,6 @@ import json
 import torch
 from torch import distributed as dist
 
-from config import total_batch_size, results_dir
 from utils import setup, cleanup
 from logger import setup_logging
 
@@ -21,7 +20,7 @@ def update_batch_sizes(current_batch_sizes, gathered_times, max_batch_sizes, tot
         current_batch_sizes (torch.Tensor): Current batch sizes for each rank.
         gathered_times (torch.Tensor): Execution times for each rank.
         max_batch_sizes (torch.Tensor): Maximum batch sizes for each rank.
-        total_batch_size (float): Current total batch size across all ranks.
+        total_batch_size (int): Current total batch size across all ranks.
         learning_rate (float): Learning rate for adjusting batch sizes.
 
     Returns:
@@ -75,6 +74,24 @@ def update_batch_sizes(current_batch_sizes, gathered_times, max_batch_sizes, tot
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, choices=["VIT_L_32", "VIT_L_16"], help="The model to use", required=True)
+    parser.add_argument("--mode", type=str, choices=["DDP", "FSDP", "FSDP+OFFLOAD", "LSHDP"], help="Training mode", required=True)
+    parser.add_argument("--num_workers", default=4, type=int, help="Number of dataloader workers", required=True)
+    parser.add_argument("--num_iterations", default=8, type=int, help="Number of iterations", required=True)
+    parser.add_argument("--total_batch_size", type=int, help="Sum of all nodes batch sizes", required=True)
+    parser.add_argument("--results_dir", type=str, help="Path to results dir", required=True)
+    args = parser.parse_args()
+
+    model = args.model
+    mode = args.mode
+    num_workers = args.num_workers
+    num_iterations = args.num_iterations
+    total_batch_size = args.total_batch_size
+    results_dir = args.results_dir
+
     setup()
 
     # Load distributed configuration
@@ -85,10 +102,10 @@ if __name__ == "__main__":
     master_port = int(os.environ['MASTER_PORT'])
 
     # Log the distributed setup
-    logger.info("Loaded distributed configuration.")
+    logger.debug("Loaded distributed configuration.")
     logger.debug(f"world_size: {world_size}, local_world_size: {local_world_size}, "
                   f"rank: {rank}, local_rank: {local_rank}, master_port: {master_port}")
-    logger.info(f"Using master port {master_port + 1} for the profiler.")
+    logger.debug(f"Using master port {master_port + 1} for the profiler.")
 
     # Configure GPU device
     device = torch.device("cuda", torch.cuda.current_device())
@@ -96,12 +113,12 @@ if __name__ == "__main__":
     # Load maximum batch sizes
     max_batch_sizes_path = os.path.join(results_dir, f"max_batch_sizes.pt")
     if os.path.isfile(max_batch_sizes_path):
-        max_batch_sizes = torch.load(max_batch_sizes_path, weights_only=True, map_location=device)
+        max_batch_sizes = torch.load(max_batch_sizes_path, weights_only=True, map_location=device).float()
     else:
         logger.error("Max batch sizes file not found. Run find_max_batch_sizes.py first.")
         raise RuntimeError("Max batch sizes file not found.")
     
-    logger.info(f"Loaded max batch sizes: {max_batch_sizes.tolist()}")
+    logger.debug(f"Loaded max batch sizes: {max_batch_sizes.tolist()}")
 
     if total_batch_size > max_batch_sizes.sum():
         logger.error(f"The sum of max batch sizes ({max_batch_sizes.sum()}) is less than total batch size ({total_batch_size}).")
@@ -124,9 +141,7 @@ if __name__ == "__main__":
     learning_rate = 1.0
     max_iterations = 10
     for iteration in range(max_iterations):
-        logger.info(f"Iteration {iteration + 1}/{max_iterations} starting...")
-
-        # Launch profiler subprocess
+        logger.debug(f"Iteration {iteration + 1}/{max_iterations} starting...")
         subprocess.run(
             [
                 "torchrun",
@@ -135,6 +150,16 @@ if __name__ == "__main__":
                 "--master_port",
                 f"{master_port + 1}",
                 "profiler.py",
+                "--model",
+                f"{model}",
+                "--mode",
+                f"{mode}",
+                "--num_workers",
+                f"{num_workers}",
+                "--num_iterations",
+                f"{num_iterations}",
+                "--results_dir",
+                f"{results_dir}",
                 "--batch_sizes",
             ] + [str(int(batch_size.item())) for index, batch_size in enumerate(current_batch_sizes)
                  if index // local_world_size == rank // local_world_size],
@@ -152,7 +177,7 @@ if __name__ == "__main__":
         local_time_tensor = torch.tensor([simulation_stats["execution_time"]], dtype=torch.float32).to(device)
         gathered_times = torch.zeros(world_size, dtype=torch.float32, device=local_time_tensor.device)
         dist.all_gather_into_tensor(gathered_times, local_time_tensor)
-        logger.info(f"Execution times from nodes: {gathered_times.tolist()}")
+        logger.debug(f"Execution times from nodes: {gathered_times.tolist()}")
 
         # Update batch sizes
         current_batch_sizes = update_batch_sizes(
@@ -162,22 +187,22 @@ if __name__ == "__main__":
             total_batch_size=total_batch_size,
             learning_rate=learning_rate
         )
-        logger.info(f"Batch sizes updated to {current_batch_sizes.tolist()} (was: {previous_batch_sizes.tolist()})")
+        logger.debug(f"Batch sizes updated to {current_batch_sizes.tolist()} (was: {previous_batch_sizes.tolist()})")
 
         if torch.equal(previous_batch_sizes, current_batch_sizes):
-            logger.info("Batch sizes converged. Exiting loop.")
+            logger.debug("Batch sizes converged. Exiting loop.")
             break
 
         previous_batch_sizes = current_batch_sizes.clone()
         learning_rate = 1 / (iteration + 1)
-        logger.info(f"Learning rate updated to: {learning_rate}")
+        logger.debug(f"Learning rate updated to: {learning_rate}")
 
     logger.info(f"Final batch sizes with sum={total_batch_size} are {current_batch_sizes.tolist()}.")
 
     # Save results
-    result_path = os.path.join(results_dir, f"best_batch_sizes_fixed.pt")
+    result_path = os.path.join(results_dir, f"best_batch_sizes_fixed_total.pt")
     torch.save(current_batch_sizes.cpu().int(), result_path)
     logger.info(f"Saved final batch sizes to {result_path}.")
 
     cleanup()
-    logger.info("Cleanup completed. Exiting process.")
+    logger.debug("Cleanup completed. Exiting process.")

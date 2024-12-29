@@ -2,8 +2,6 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 
-from config import results_dir
-
 
 def setup_logging(name):
     """
@@ -20,8 +18,7 @@ def setup_logging(name):
     - logger (logging.Logger): The configured logger object.
     """
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    os.makedirs(results_dir, exist_ok=True)
-    log_file = os.path.join(results_dir, f"log.log")
+    log_file = "log.log"
 
     # Configure the root logger
     logging.basicConfig(level=logging.INFO, format=log_format)
@@ -33,5 +30,5 @@ def setup_logging(name):
     # Attach the handler to the logger
     logger = logging.getLogger(name)
     logger.addHandler(file_handler)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     return logger
