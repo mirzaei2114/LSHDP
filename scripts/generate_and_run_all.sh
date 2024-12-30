@@ -16,7 +16,7 @@ num_iterations=8
 for model in "${models[@]}"; do
   for mode in "${modes[@]}"; do
     # Create a script for this combination
-    script_name="run_${model}_${mode}.sh"
+    script_name="scripts/run_${model}_${mode}.sh"
 
     # Generate script content
     cat <<EOL > $script_name

@@ -30,5 +30,5 @@ def setup_logging(name):
     # Attach the handler to the logger
     logger = logging.getLogger(name)
     logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     return logger
