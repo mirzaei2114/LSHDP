@@ -70,7 +70,7 @@ def get_model_specific_vars(model, world_size, rank, batch_sizes, num_workers):
     if model == "VIT_L_32":
         # Import and initialize Vision Transformer Large-32 model
         from torchvision.models.vision_transformer import vit_l_32, ViT_L_32_Weights
-        model = vit_l_32(weights=ViT_L_32_Weights.DEFAULT)
+        model = vit_l_32(weights=None)
 
         # Define transformation pipeline for image preprocessing
         transform = transforms.Compose([
@@ -82,7 +82,7 @@ def get_model_specific_vars(model, world_size, rank, batch_sizes, num_workers):
     elif model == "VIT_L_16":
         # Import and initialize Vision Transformer Large-16 model
         from torchvision.models.vision_transformer import vit_l_16, ViT_L_16_Weights
-        model = vit_l_16(weights=ViT_L_16_Weights.DEFAULT)
+        model = vit_l_16(weights=None)
 
         # Define transformation pipeline for image preprocessing
         transform = transforms.Compose([
@@ -162,18 +162,36 @@ def get_fsdp_kwargs(mode):
     Returns configuration arguments for Fully Sharded Data Parallel (FSDP) based on the given mode.
     
     Args:
-        mode (str): The mode for distributed training. Can be one of "DDP", "FSDP", "FSDP+OFFLOAD", or "LSHDP".
+        mode (str): The mode for distributed training. Can be one of "DDP", "DDP+FP", "FSDP", "FSDP+OFFLOAD", or "LSHDP".
     
     Returns:
-        dict or None: A dictionary of FSDP configuration arguments if mode is FSDP-related; 
-                      None if mode is "DDP".
+        dict or None: A dictionary of FSDP configuration arguments.
     
     Raises:
         RuntimeError: If an invalid mode is provided.
     """
     if mode == "DDP":
-        # No additional FSDP configuration required for DDP mode
-        return None
+        # Configuration for Distributed Data Parallel mode
+        fsdp_kwargs = {
+            "sharding_strategy": ShardingStrategy.NO_SHARD,  # Disable parameter sharding
+            "backward_prefetch": None,  # Disable backward prefetch
+            "mixed_precision": MixedPrecision(
+                param_dtype=torch.float16,  # Use FP16 for model parameters
+                reduce_dtype=torch.float16,  # Use FP16 for gradient reduction
+                buffer_dtype=torch.float16,  # Use FP16 for buffers
+            ),
+            "forward_prefetch": False,  # Disbale prefetching during forward pass
+        }
+        return fsdp_kwargs
+    elif mode == "DDP+FP":
+        # Configuration for Distributed Data Parallel mode + Full Precision
+        fsdp_kwargs = {
+            "sharding_strategy": ShardingStrategy.NO_SHARD,  # Disable parameter sharding
+            "backward_prefetch": None,  # Disable backward prefetch
+            "mixed_precision": None,  # Use full precision
+            "forward_prefetch": False,  # Disbale prefetching during forward pass
+        }
+        return fsdp_kwargs
     elif mode == "FSDP":
         # Configuration for standard Fully Sharded Data Parallel mode
         fsdp_kwargs = {

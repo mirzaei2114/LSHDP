@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=["VIT_L_32", "VIT_L_16"], help="The model to use", required=True)
-    parser.add_argument("--mode", type=str, choices=["DDP", "FSDP", "FSDP+OFFLOAD", "LSHDP"], help="Training mode", required=True)
+    parser.add_argument("--mode", type=str, choices=["DDP", "DDP+FP", "FSDP", "FSDP+OFFLOAD", "LSHDP"], help="Training mode", required=True)
     parser.add_argument("--batch_sizes", nargs="+", type=int, help="Batch sizes per rank", required=True)
     parser.add_argument("--num_workers", default=4, type=int, help="Number of dataloader workers", required=True)
     parser.add_argument("--num_iterations", default=8, type=int, help="Number of iterations", required=True)

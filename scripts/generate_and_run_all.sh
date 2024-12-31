@@ -2,13 +2,13 @@
 
 # Define arrays of models and modes
 models=("VIT_L_32" "VIT_L_16")
-modes=("DDP" "FSDP" "FSDP+OFFLOAD" "LSHDP")
+modes=("DDP" "DDP+FP" "FSDP" "FSDP+OFFLOAD" "LSHDP")
 
 # Define common parameters
-nnodes=1
+nnodes=4
 nproc_per_node=1
 node_rank=0
-master_addr="localhost"
+master_addr="172.20.253.19"
 num_workers=4
 num_iterations=8
 
@@ -44,19 +44,6 @@ torchrun --nnodes \$nnodes \
   --num_workers \$num_workers \
   --num_iterations \$num_iterations \
   --results_dir "\$results_dir"
-
-# Use Python to load the tensor and calculate the total_batch_size
-total_batch_size=\$(python3 - <<END
-import torch
-
-# Load the tensor from the .pt file
-tensor = torch.load("\$results_dir/max_batch_sizes.pt")
-
-# Calculate the sum of elements
-print(torch.tensor([2 ** (x.bit_length() - 1) for x in tensor.tolist()]).sum().item())
-END
-)
-echo "Total Batch Size: \$total_batch_size"
 
 # Use Python to load the tensor and calculate the global_total_batch_size
 global_total_batch_size=\$(python3 - <<END
@@ -94,7 +81,7 @@ torchrun --nnodes \$nnodes \
   --num_workers \$num_workers \
   --num_iterations \$num_iterations \
   --results_dir "\$results_dir" \
-  --total_batch_size \$total_batch_size
+  --total_batch_size \$global_total_batch_size
 
 echo "Running trainer with fixed_total"
 torchrun --nnodes \$nnodes \
