@@ -31,7 +31,7 @@ num_workers=$num_workers
 num_iterations=$num_iterations
 
 # Results directory
-results_dir="${model}-${mode}"
+results_dir="results/${model}-${mode}"
 
 echo "Running max_batch_sizes"
 torchrun --nnodes \$nnodes \
