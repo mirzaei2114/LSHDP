@@ -162,7 +162,7 @@ def get_fsdp_kwargs(mode):
     Returns configuration arguments for Fully Sharded Data Parallel (FSDP) based on the given mode.
     
     Args:
-        mode (str): The mode for distributed training. Can be one of "DDP", "DDP+FP", "FSDP", "FSDP+OFFLOAD", or "LSHDP".
+        mode (str): The mode for distributed training. Can be one of "DDP", "DDP+FP", "FSDP", "FSDP+OFFLOAD", or "LSDP".
     
     Returns:
         dict or None: A dictionary of FSDP configuration arguments.
@@ -227,8 +227,8 @@ def get_fsdp_kwargs(mode):
             "forward_prefetch": True,  # Enable prefetching during forward pass
         }
         return fsdp_kwargs
-    elif mode == "LSHDP":
-        # Configuration for Locally-Sharded Heterogeneous Data Parallel mode
+    elif mode == "LSDP":
+        # Configuration for Locally-Sharded Data Parallel mode
         fsdp_kwargs = {
             "sharding_strategy": ShardingStrategy.NO_SHARD,  # Disable parameter sharding
             "cpu_offload": CPUOffload(offload_params=True),  # Offload parameters to CPU

@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=["VIT_L_32", "VIT_L_16"], help="The model to use", required=True)
-    parser.add_argument("--mode", type=str, choices=["DDP", "DDP+FP", "FSDP", "FSDP+OFFLOAD", "LSHDP"], help="Training mode", required=True)
+    parser.add_argument("--mode", type=str, choices=["DDP", "DDP+FP", "FSDP", "FSDP+OFFLOAD", "LSDP"], help="Training mode", required=True)
     parser.add_argument("--total_batch_size", type=int, help="Sum of all nodes batch sizes", required=False)
     parser.add_argument("--batch_sizes_path", choices=["fixed_total", "no_restriction"], type=str, help="Path to batch sizes per rank", required=False)
     parser.add_argument("--num_workers", default=4, type=int, help="Number of dataloader workers", required=True)

@@ -2,7 +2,7 @@
 
 # Define arrays of models and modes
 models=("VIT_L_32" "VIT_L_16")
-modes=("DDP" "DDP+FP" "FSDP" "FSDP+OFFLOAD" "LSHDP")
+modes=("DDP" "DDP+FP" "FSDP" "FSDP+OFFLOAD" "LSDP")
 
 # Define common parameters
 nnodes=4
